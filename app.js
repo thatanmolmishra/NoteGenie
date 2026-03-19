@@ -700,57 +700,54 @@ function handleFiles(files) {
     `;
     items.appendChild(item);
 
-    simulateUpload(item, file.name, icon, ext);
+    simulateUpload(item, file.name, icon, ext, file);
   });
 }
 
-function simulateUpload(item, name, icon, ext) {
+async function simulateUpload(item, name, icon, ext, file) {
   const fill = item.querySelector('.queue-progress-fill');
   const status = item.querySelector('.queue-status');
-  let progress = 0;
+  
+  fill.style.width = '30%';
+  status.textContent = 'Uploading & analyzing...';
 
-  const phases = ['Uploading…', 'Extracting text…', 'AI is analysing…', 'Generating summary…', 'Done ✨'];
-  let phase = 0;
-
-  const interval = setInterval(() => {
-    progress += Math.random() * 18 + 4;
-    if (progress > 100) progress = 100;
-    fill.style.width = progress + '%';
-
-    const phaseIdx = Math.floor((progress/100) * (phases.length-1));
-    if (phaseIdx !== phase) {
-      phase = phaseIdx;
-      status.textContent = phases[phase];
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch('http://localhost:3000/api/upload', {
+      method: 'POST',
+      body: formData
+    });
+    
+    fill.style.width = '80%';
+    status.textContent = 'Generating AI summary...';
+    
+    if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Upload failed');
     }
+    const newNote = await response.json();
+    
+    fill.style.width = '100%';
+    status.textContent = '✨ Summary generated!';
+    fill.style.background = 'linear-gradient(90deg, #10B981, #06B6D4)';
+    item.style.borderColor = 'rgba(16,185,129,0.3)';
 
-    if (progress >= 100) {
-      clearInterval(interval);
-      status.textContent = '✨ Summary generated!';
-      fill.style.background = 'linear-gradient(90deg, #10B981, #06B6D4)';
-      item.style.borderColor = 'rgba(16,185,129,0.3)';
+    // Add to notes state
+    DATA.notes.unshift(newNote);
 
-      // Add to notes
-      const newNote = {
-        id: DATA.notes.length + 1,
-        title: name.replace(/\.[^.]+$/, ''),
-        topic: 'Uncategorised',
-        type: ext,
-        size: '—',
-        date: 'Just now',
-        icon: icon,
-        color: '#7C3AED',
-        lastRevised: 0,
-        starred: false,
-        summary: 'AI-generated summary will appear here after processing.'
-      };
-      DATA.notes.unshift(newNote);
-
-      // Refresh file grid
-      const grid = $('fileGrid');
-      grid.innerHTML = '';
-      renderFileGrid();
-    }
-  }, 180);
+    // Refresh file grid
+    const grid = $('fileGrid');
+    grid.innerHTML = '';
+    renderFileGrid();
+    
+  } catch (error) {
+    status.textContent = '❌ ' + error.message;
+    fill.style.background = '#ef4444';
+    item.style.borderColor = 'rgba(239,68,68,0.3)';
+    console.error(error);
+  }
 }
 
 // ══════════════════════════════════════════
@@ -841,18 +838,28 @@ function initChat() {
   const input = $('chatInput');
   const send = $('chatSend');
 
-  const doSend = () => {
+  const doSend = async () => {
     const msg = input.value.trim();
     if (!msg) return;
     input.value = '';
     addChatMessage('user', msg);
     setTimeout(() => showTyping(), 300);
-    setTimeout(() => {
+
+    try {
+      const response = await fetch('http://localhost:3000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, history: [] })
+      });
       removeTyping();
-      const resp = AI_RESPONSES[chatMessageCount % AI_RESPONSES.length];
-      addChatMessage('bot', resp.text, resp.source);
-      chatMessageCount++;
-    }, 1800 + Math.random()*800);
+      if (!response.ok) throw new Error('Chat failed');
+      const data = await response.json();
+      addChatMessage('bot', data.answer);
+    } catch (err) {
+      removeTyping();
+      addChatMessage('bot', "❌ Error: Could not connect to NoteGenie AI backend. Ensure `node server.js` is running.");
+      console.error(err);
+    }
   };
 
   send.addEventListener('click', doSend);
@@ -872,8 +879,15 @@ function addChatMessage(role, text, source) {
     : '<div class="msg-avatar user">AM</div>';
 
   const md = text
+    .replace(/^### (.*$)/gim, '<h3 style="margin-top:10px;margin-bottom:6px">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 style="margin-top:10px;margin-bottom:6px">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 style="margin-top:10px;margin-bottom:6px">$1</h1>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/^\* (.*$)/gim, '<li style="margin-left:20px;margin-bottom:4px">$1</li>')
+    .replace(/^- (.*$)/gim, '<li style="margin-left:20px;margin-bottom:4px">$1</li>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
 
   const sourceHtml = source ? `<div class="msg-source">📎 ${source}</div>` : '';
 
