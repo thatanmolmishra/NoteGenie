@@ -128,16 +128,20 @@ Respond ONLY with valid JSON in this exact structure:
 // Endpoint: Chat with Notes
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, history } = req.body;
+        const { message, history, sourceIds } = req.body;
 
         if (!message) {
             return res.status(400).json({ error: 'Message is required.' });
         }
 
+        // Filter notes by selected sourceIds if provided
+        let filteredNotes = notesDB;
+        if (sourceIds && Array.isArray(sourceIds) && sourceIds.length > 0) {
+            filteredNotes = notesDB.filter(n => sourceIds.includes(n.id));
+        }
+
         // Combine all note texts into a context knowledge base
-        // In a real production app with massive docs, we'd use RAG/Embeddings here.
-        // For prototyping, we just pass the text directly.
-        let knowledgeBase = notesDB.map(n => `--- Document: ${n.title} ---\n${n.text.substring(0, 10000)}...`).join('\n\n');
+        let knowledgeBase = filteredNotes.map(n => `--- Document: ${n.title} ---\n${n.text.substring(0, 10000)}...`).join('\n\n');
 
         if (!knowledgeBase) {
             knowledgeBase = "The user hasn't uploaded any documents yet.";

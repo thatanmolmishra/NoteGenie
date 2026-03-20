@@ -1010,6 +1010,7 @@ body {
 .context-source-item.active { background:rgba(124,58,237,0.1);border-color:rgba(124,58,237,0.3); }
 
 .cs-icon { font-size:18px;flex-shrink:0; }
+.cs-info { flex:1; min-width:0; }
 .cs-name { font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .cs-type { font-size:10px;color:var(--text-muted); }
 
