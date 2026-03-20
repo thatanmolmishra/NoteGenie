@@ -69,8 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderRevision();
   renderAnalytics();
   initUploadZone();
-  fetchNotes();
-  initSystem();
+  initSearch();
   initChat();
   initModal();
   animateCounters();
@@ -469,19 +468,12 @@ function renderTopics() {
 // ── Chat Render ──────────────────────────
 function renderChat() {
   const sources = $('contextSources');
-  if (!sources) return;
-  sources.innerHTML = '';
-  
-  DATA.notes.forEach(note => {
+  DATA.notes.slice(0,5).forEach(note => {
     const div = document.createElement('div');
-    // Default mock notes active, others inactive by default
-    const isMock = note.id <= 3;
-    div.className = 'context-source-item ' + (isMock ? 'active' : '');
-    div.dataset.id = note.id;
-    
+    div.className = 'context-source-item ' + (note.id <= 2 ? 'active' : '');
     div.innerHTML = `
-      <span class="cs-icon">${note.icon || '📄'}</span>
-      <div class="cs-info">
+      <span class="cs-icon">${note.icon}</span>
+      <div>
         <div class="cs-name" title="${note.title}">${note.title}</div>
         <div class="cs-type">${note.type} · ${note.topic}</div>
       </div>
@@ -489,22 +481,6 @@ function renderChat() {
     div.addEventListener('click', () => div.classList.toggle('active'));
     sources.appendChild(div);
   });
-}
-
-async function fetchNotes() {
-  try {
-    const response = await fetch('https://notegenie-rt35.onrender.com/api/notes');
-    if (response.ok) {
-      const notes = await response.json();
-      if (notes && notes.length > 0) {
-        DATA.notes = notes;
-        renderFileGrid();
-        renderChat();
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to fetch initial notes from server:", err);
-  }
 }
 
 // ── Revision Render ──────────────────────
@@ -761,11 +737,10 @@ async function simulateUpload(item, name, icon, ext, file) {
     // Add to notes state
     DATA.notes.unshift(newNote);
 
-    // Refresh file grid and chat sources
+    // Refresh file grid
     const grid = $('fileGrid');
     grid.innerHTML = '';
     renderFileGrid();
-    renderChat();
     
   } catch (error) {
     let msg = error.message;
@@ -874,18 +849,11 @@ function initChat() {
     addChatMessage('user', msg);
     setTimeout(() => showTyping(), 300);
 
-    const activeIds = Array.from(document.querySelectorAll('.context-source-item.active'))
-                          .map(el => parseInt(el.dataset.id));
-
     try {
       const response = await fetch('https://notegenie-rt35.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            message: msg, 
-            history: [],
-            sourceIds: activeIds
-        })
+        body: JSON.stringify({ message: msg, history: [] })
       });
       removeTyping();
       if (!response.ok) throw new Error('Chat failed');
