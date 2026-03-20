@@ -743,7 +743,11 @@ async function simulateUpload(item, name, icon, ext, file) {
     renderFileGrid();
     
   } catch (error) {
-    status.textContent = '❌ ' + error.message;
+    let msg = error.message;
+    if (msg.includes('Failed to fetch')) {
+        msg = 'Connection failed. Note: Render Free Tier takes ~1 min to wake up. Please wait and try again.';
+    }
+    status.textContent = '❌ ' + msg;
     fill.style.background = '#ef4444';
     item.style.borderColor = 'rgba(239,68,68,0.3)';
     console.error(error);
@@ -857,7 +861,11 @@ function initChat() {
       addChatMessage('bot', data.answer);
     } catch (err) {
       removeTyping();
-      addChatMessage('bot', "❌ Error: Could not connect to NoteGenie AI backend. Ensure `node server.js` is running.");
+      let msg = err.message;
+      if (msg.includes('Failed to fetch')) {
+        msg = 'Could not reach backend. If this is the first time today, Render may take ~1 min to wake up. Please try again in a few seconds.';
+      }
+      addChatMessage('bot', `❌ Error: ${msg}`);
       console.error(err);
     }
   };
